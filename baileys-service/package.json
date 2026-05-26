@@ -1,6 +1,6 @@
 {
   "name": "chatwoot-baileys-service",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "start": "node index.js"
@@ -11,6 +11,6 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "pino": "^9.6.0",
-    "qrcode-terminal": "^0.12.0"
+    "qrcode": "^1.5.4"
   }
 }

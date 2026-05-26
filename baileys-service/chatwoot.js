@@ -1,29 +1,31 @@
 import axios from 'axios'
 
-const api = axios.create({
-  baseURL: `${process.env.CHATWOOT_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}`,
-  headers: { api_access_token: process.env.CHATWOOT_API_TOKEN },
-})
+const convCache = new Map() // `${accountId}:${phone}` -> conversationId
 
-// cache em memória: phone -> conversation_id
-const convCache = new Map()
-
-export async function forwardToChatwoot({ phone, name, text }) {
+export async function forwardToChatwoot({ phone, name, text, inboxId, accountId, token }) {
+  const api = createApi(accountId, token)
   try {
-    const contact = await getOrCreateContact(phone, name)
-    const convId = await getOrCreateConversation(contact.id, phone)
+    const contact = await getOrCreateContact(api, phone, name)
+    const convId = await getOrCreateConversation(api, contact.id, phone, inboxId, accountId)
     await api.post(`/conversations/${convId}/messages`, {
       content: text,
       message_type: 'incoming',
       private: false,
     })
-    console.log(`📥 [${phone}] → Chatwoot: "${text.substring(0, 60)}"`)
+    console.log(`📥 [conta:${accountId}] +${phone}: "${text.substring(0, 60)}"`)
   } catch (err) {
-    console.error('Erro ao encaminhar para Chatwoot:', err.response?.data ?? err.message)
+    console.error(`Erro conta ${accountId}:`, err.response?.data ?? err.message)
   }
 }
 
-async function getOrCreateContact(phone, name) {
+function createApi(accountId, token) {
+  return axios.create({
+    baseURL: `${process.env.CHATWOOT_URL}/api/v1/accounts/${accountId}`,
+    headers: { api_access_token: token },
+  })
+}
+
+async function getOrCreateContact(api, phone, name) {
   const res = await api.get(`/contacts/search?q=%2B${phone}&page=1`)
   const contacts = res.data.payload ?? []
   const existing = contacts.find(c => c.phone_number?.replace(/\D/g, '').endsWith(phone))
@@ -36,27 +38,23 @@ async function getOrCreateContact(phone, name) {
   return created.data
 }
 
-async function getOrCreateConversation(contactId, phone) {
-  if (convCache.has(phone)) return convCache.get(phone)
+async function getOrCreateConversation(api, contactId, phone, inboxId, accountId) {
+  const key = `${accountId}:${phone}`
+  if (convCache.has(key)) return convCache.get(key)
 
   const res = await api.get(`/contacts/${contactId}/conversations`)
-  const conversations = res.data.payload ?? []
-  const inboxId = parseInt(process.env.CHATWOOT_INBOX_ID)
-
-  const existing = conversations.find(
-    c => c.inbox_id === inboxId && c.status !== 'resolved'
+  const existing = (res.data.payload ?? []).find(
+    c => c.inbox_id === parseInt(inboxId) && c.status !== 'resolved'
   )
-
   if (existing) {
-    convCache.set(phone, existing.id)
+    convCache.set(key, existing.id)
     return existing.id
   }
 
   const conv = await api.post('/conversations', {
     contact_id: contactId,
-    inbox_id: inboxId,
+    inbox_id: parseInt(inboxId),
   })
-
-  convCache.set(phone, conv.data.id)
+  convCache.set(key, conv.data.id)
   return conv.data.id
 }

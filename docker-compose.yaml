@@ -116,16 +116,34 @@ services:
       dockerfile: Dockerfile
     volumes:
       - baileys_auth:/app/auth_state
+      - baileys_data:/app/data
     depends_on:
       - rails
     environment:
       - CHATWOOT_URL=http://rails:3000
-      - CHATWOOT_API_TOKEN=${BAILEYS_API_TOKEN}
-      - CHATWOOT_ACCOUNT_ID=${BAILEYS_ACCOUNT_ID}
-      - CHATWOOT_INBOX_ID=${BAILEYS_INBOX_ID}
       - WEBHOOK_PORT=3001
+      - BAILEYS_ADMIN_TOKEN=${BAILEYS_ADMIN_TOKEN}
     ports:
       - '3001:3001'
+    restart: unless-stopped
+
+  admin-panel:
+    build:
+      context: ./admin-panel
+      dockerfile: Dockerfile
+    volumes:
+      - admin_data:/app/data
+    depends_on:
+      - rails
+      - baileys
+    environment:
+      - ADMIN_SECRET=${ADMIN_SECRET}
+      - CHATWOOT_URL=http://rails:3000
+      - BAILEYS_SERVICE_URL=http://baileys:3001
+      - BAILEYS_ADMIN_TOKEN=${BAILEYS_ADMIN_TOKEN}
+      - NEXT_PUBLIC_CHATWOOT_URL=${FRONTEND_URL}
+    ports:
+      - '4000:4000'
     restart: unless-stopped
 
 volumes:
@@ -136,3 +154,5 @@ volumes:
   cache:
   bundle:
   baileys_auth:
+  baileys_data:
+  admin_data:

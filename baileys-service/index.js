@@ -1,8 +1,17 @@
 import 'dotenv/config'
-import { startWhatsApp } from './whatsapp.js'
-import { startWebhookServer } from './webhook.js'
+import express from 'express'
+import instanceManager from './instance-manager.js'
+import { registerWebhook } from './webhook.js'
+import apiRouter from './api.js'
 
-console.log('🚀 Iniciando Chatwoot Baileys Service...')
+const app = express()
+app.use(express.json())
 
-const sock = await startWhatsApp()
-startWebhookServer(sock)
+registerWebhook(app)
+app.use('/api', apiRouter)
+
+const port = process.env.WEBHOOK_PORT || 3001
+app.listen(port, '0.0.0.0', async () => {
+  console.log(`🚀 Baileys Service na porta ${port}`)
+  await instanceManager.loadPersisted()
+})
